@@ -6,6 +6,7 @@ import io.ktor.server.netty.*
 import org.the_chance.xo.plugins.configureMonitoring
 import org.the_chance.xo.plugins.configureRouting
 import org.the_chance.xo.plugins.configureSerialization
+import org.the_chance.xo.plugins.configureSockets
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
@@ -16,5 +17,6 @@ fun Application.module() {
 
     configureSerialization()
     configureMonitoring()
+    configureSockets()
     configureRouting()
 }
