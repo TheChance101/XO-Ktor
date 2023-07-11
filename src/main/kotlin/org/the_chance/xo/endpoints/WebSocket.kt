@@ -6,13 +6,13 @@ import org.the_chance.xo.controller.GameSessionController
 
 fun Routing.xoWebSocket(gameSessionController: GameSessionController) {
 
-    webSocket("/xo-game/{playerName?}/{gameId?}") {
+    webSocket("/xo-game/{playerName}/{gameId?}") {
 
         val gameId = call.parameters["gameId"]
-        val playerName = call.parameters["playerName"]
+        val playerName = call.parameters["playerName"]?.trim().orEmpty()
 
-        if (gameId.isNullOrEmpty() && playerName.isNullOrEmpty()) {
-            gameSessionController.newGame(this)
+        if (gameId.isNullOrEmpty()) {
+            gameSessionController.newGame(playerName,this)
         } else {
             gameSessionController.joinGame(gameId, playerName, this)
         }

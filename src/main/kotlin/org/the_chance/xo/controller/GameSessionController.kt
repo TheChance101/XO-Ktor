@@ -18,9 +18,12 @@ class GameSessionController {
         private const val MAX_PLAYERS = 2
     }
 
-    private fun createGameSession(defaultWebSocketServerSession: DefaultWebSocketServerSession): GameSession {
+    private fun createGameSession(
+        playerNameParams: String?,
+        defaultWebSocketServerSession: DefaultWebSocketServerSession
+    ): GameSession {
         val gameSessionId = generateUUID()
-        val playerName = "user-${generateUUID()}"
+        val playerName = "user-$playerNameParams"
         gameSessions[gameSessionId] = mutableListOf()
         return GameSession(gameSessionId, playerName, defaultWebSocketServerSession)
     }
@@ -69,10 +72,10 @@ class GameSessionController {
         }
     }
 
-    suspend fun newGame(defaultWebSocketServerSession: DefaultWebSocketServerSession) {
-        val gameSession = createGameSession(defaultWebSocketServerSession)
-        val playerName = gameSession.playerName
+    suspend fun newGame(playerNameParams: String?, defaultWebSocketServerSession: DefaultWebSocketServerSession) {
+        val gameSession = createGameSession(playerNameParams, defaultWebSocketServerSession)
         val gameSessionId = gameSession.gameId
+        val playerName = gameSession.playerName
 
         defaultWebSocketServerSession.send("Created game session with ID: $gameSessionId, Player Name: $playerName")
 
