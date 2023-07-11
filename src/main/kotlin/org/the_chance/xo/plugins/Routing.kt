@@ -1,12 +1,12 @@
 package org.the_chance.xo.plugins
 
-import org.the_chance.xo.endpoints.testRoutes
-import io.ktor.server.routing.*
 import io.ktor.server.application.*
+import io.ktor.server.routing.*
+import org.the_chance.xo.endpoints.playXo
+import org.the_chance.xo.models.TicTacToeGame
 
-fun Application.configureRouting(
-) {
+fun Application.configureRouting(ticTacToeGame: TicTacToeGame) {
     routing {
-        testRoutes()
+        playXo(ticTacToeGame)
     }
 }
