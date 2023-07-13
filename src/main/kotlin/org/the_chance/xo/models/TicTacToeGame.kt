@@ -13,20 +13,11 @@ import java.util.concurrent.ConcurrentHashMap
 class TicTacToeGame {
 
     private val state = MutableStateFlow(GameState())
-
-    // ConcurrentHashMap that makes sure that we can access that hasMap from different threads,
-    // and we can use that hash map to send specific data to specific user
     private val playerSockets = ConcurrentHashMap<Char, WebSocketSession>()
-
-    // this is coroutine scope to be used as scope for our class,
-    // and also you can use it to cancel the coroutine very easily
     private val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private var delayGameJob: Job? = null
 
     init {
-        // this line said on each emmition when the state changes recall broadcast function with the corresponding state
-        // and run in scope we created
         state.onEach(::broadcast).launchIn(gameScope)
     }
 
