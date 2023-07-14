@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 class GameController {
 
     private val gameSessions: ConcurrentHashMap<String, MutableList<GameSession>> = ConcurrentHashMap()
-    val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gameBoard: Array<Array<Char>> =
         arrayOf(
             arrayOf(' ', ' ', ' '),
