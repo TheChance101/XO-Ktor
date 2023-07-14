@@ -52,8 +52,15 @@ class GameController {
     private suspend fun broadcast(player: Player, gameId: String, session: GameSession) {
         try {
             val gameSessionList = gameSessions[gameId]
+            var playerTurnSent = false
+
             session.session.incoming.consumeEach { frame ->
                 if (frame is Frame.Text) {
+
+                    if (playerTurnSent) {
+                        session.session.send("You have already sent your turn.")
+                        return@consumeEach
+                    }
 
                     val turnJson = frame.readText()
                     val receivedTurn = Json.decodeFromString<Turn>(turnJson)
@@ -69,7 +76,7 @@ class GameController {
                     val sender = if (player.sendMessageTo == 1) gameSessionList?.get(0) else gameSessionList?.get(1)
 
                     updateGameBoard(player,receivedTurn, receiver, sender)
-
+                    playerTurnSent = true
                 }
 
             }
