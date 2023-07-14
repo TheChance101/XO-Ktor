@@ -2,20 +2,14 @@ package org.the_chance.xo.endpoints
 
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import org.the_chance.xo.controller.GameSessionController
+import org.the_chance.xo.controller.GameController
 
-fun Routing.xoWebSocket(gameSessionController: GameSessionController) {
+fun Routing.xoWebSocket(gameController: GameController) {
 
     webSocket("/xo-game/{playerName}/{gameId?}") {
-
-        val gameId = call.parameters["gameId"]
+        val gameId = call.parameters["gameId"]?.trim().orEmpty()
         val playerName = call.parameters["playerName"]?.trim().orEmpty()
-
-        if (gameId.isNullOrEmpty()) {
-            gameSessionController.newGame(playerName,this)
-        } else {
-            gameSessionController.joinGame(gameId, playerName, this)
-        }
+        gameController.connectPlayer(gameId, playerName, this)
     }
 }
 
