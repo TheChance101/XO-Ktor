@@ -126,10 +126,11 @@ class GameController {
         return GameSession(gameId = gameId, playerName = playerName, playerSymbol = 'X', session = session)
     }
 
-    private fun newGame(playerName: String, session: WebSocketSession): GameSession {
+    private suspend fun newGame(playerName: String, session: WebSocketSession): GameSession {
         val newGameId = generateUUID()
         println(newGameId)
         val gameSession = createSession(newGameId, playerName, session)
+        session.send(newGameId)
         gameSessions[newGameId] = mutableListOf(gameSession)
         return gameSession
     }

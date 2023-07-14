@@ -1,7 +1,6 @@
 package org.the_chance.xo.data
 
-import io.ktor.websocket.WebSocketSession
-import kotlinx.serialization.Serializable
+import io.ktor.websocket.*
 
 data class GameSession(
     val gameId: String,
