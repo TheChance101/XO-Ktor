@@ -10,7 +10,9 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.the_chance.xo.data.GameSession
+import org.the_chance.xo.data.Player
 import org.the_chance.xo.data.Turn
+import org.the_chance.xo.utils.closeSession
 import org.the_chance.xo.utils.generateUUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -33,20 +35,21 @@ class GameController {
         if (gameId.isEmpty()) {
             // new player create game
             val gameSession = newGame(playerName, session)
-
-            broadcast(position = 1, gameId = gameSession.gameId, session = gameSession)
+            val player = Player(id = 0, name = playerName, symbol = 'X',sendMessageTo = 1)
+            broadcast(player, gameId = gameSession.gameId, session = gameSession)
 
         } else {
             // player has a gameId
             val gameSession = joinGame(gameId, playerName, session)
 
             gameSession?.let {
-                broadcast(position = 0, gameId = gameSession.gameId, session = it)
+                val player = Player(id = 1, name = playerName, symbol = 'O',sendMessageTo = 0)
+                broadcast(player, gameId = gameSession.gameId, session = it)
             }
         }
     }
 
-    private suspend fun broadcast(position: Int, gameId: String, session: GameSession) {
+    private suspend fun broadcast(player: Player, gameId: String, session: GameSession) {
         try {
             val gameSessionList = gameSessions[gameId]
             session.session.incoming.consumeEach { frame ->
@@ -62,10 +65,10 @@ class GameController {
                         return@consumeEach
                     }
 
-                    val receiver = gameSessionList?.get(position)
-                    val sender = if (position == 1) gameSessionList?.get(0) else gameSessionList?.get(1)
+                    val receiver = gameSessionList?.get(player.sendMessageTo)
+                    val sender = if (player.sendMessageTo == 1) gameSessionList?.get(0) else gameSessionList?.get(1)
 
-                    updateGameBoard(receivedTurn, receiver, sender)
+                    updateGameBoard(player,receivedTurn, receiver, sender)
 
                 }
 
@@ -78,18 +81,22 @@ class GameController {
         }
     }
 
-    private fun updateGameBoard(receivedTurn: Turn, receiver: GameSession?, sender: GameSession?) {
+    private fun updateGameBoard(player: Player,receivedTurn: Turn, receiver: GameSession?, sender: GameSession?) {
         gameScope.launch {
-            gameBoard[receivedTurn.x][receivedTurn.y] = receivedTurn.symbol
+            gameBoard[receivedTurn.x][receivedTurn.y] = player.symbol
             print2DArray(gameBoard)
             val winningSymbol = getWinningSymbol()
             if (winningSymbol != null) {
-                if (winningSymbol == 'O') {
+                if (winningSymbol == player.symbol) {
                     receiver?.session?.send("Congratulations! You won!")
                     sender?.session?.send("You lost!")
+                    receiver?.session?.closeSession("End Game","End Game")
+                    sender?.session?.closeSession("End Game","End Game")
                 } else {
                     receiver?.session?.send("You lost!")
                     sender?.session?.send("Congratulations! You won!")
+                    receiver?.session?.closeSession("End Game","End Game")
+                    sender?.session?.closeSession("End Game","End Game")
                 }
 
             } else if (isBoardFull()) {
