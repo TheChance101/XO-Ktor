@@ -21,4 +21,4 @@ data class GameSession(
 )
 
 @Serializable
-data class Turn(val x: Int,val y: Int)
+data class Turn(val symbol: Char, val x: Int, val y: Int)
