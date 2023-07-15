@@ -1,12 +1,14 @@
 package org.the_chance.xo.plugins
 
-import org.the_chance.xo.endpoints.testRoutes
-import io.ktor.server.routing.*
 import io.ktor.server.application.*
+import io.ktor.server.routing.*
+import org.the_chance.xo.controller.GameController
+import org.the_chance.xo.endpoints.xoWebSocket
 
 fun Application.configureRouting(
+    gameController: GameController
 ) {
     routing {
-        testRoutes()
+        xoWebSocket(gameController)
     }
 }
