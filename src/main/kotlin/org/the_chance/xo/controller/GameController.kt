@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class GameController {
 
-    private val gameSessions: ConcurrentHashMap<String, MutableList<Game>> = ConcurrentHashMap()
+    private val games: ConcurrentHashMap<String, Game> = ConcurrentHashMap()
     private val gameScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     suspend fun connectPlayer(gameId: String, playerName: String, session: WebSocketSession) {
@@ -26,34 +26,27 @@ class GameController {
         if (gameId.isEmpty()) {
             // new player create game
             val newBoard = Array(3) { Array(3) { ' ' } }
-            val gameSession = newGame(playerName, session, gameBoard = newBoard)
+            val game = newGame(playerName, session, gameBoard = newBoard)
 
             println(
-                "\nPlayer ${gameSession.player.id} : ${gameSession.player.name} with symbol " +
-                        "${gameSession.player.symbol} created new board ${newBoard.hashCode()}\n"
+                "\nPlayer ${game.player1?.id} : ${game.player1?.name} with symbol " +
+                        "${game.player1?.symbol} created new board ${newBoard.hashCode()}\n"
             )
 
-            broadcast(gameSession.player, gameId = gameSession.gameId)
+            game.player1?.let { broadcast(it, gameId = game.gameId) }
 
         } else {
             // player has a gameId
-            val gameSession = joinGame(gameId, playerName, session)
+            val game = joinGame(gameId, playerName, session)
 
-            println(
-                "\nPlayer ${gameSession?.player?.id} : ${gameSession?.player?.name} with symbol" +
-                        " ${gameSession?.player?.symbol}\n"
-            )
-
-            gameSession?.let {
-                broadcast(gameSession.player, gameId = gameSession.gameId)
+            game?.player2?.let {
+                broadcast(it, gameId = game.gameId)
             }
         }
     }
 
     private suspend fun broadcast(player: Player, gameId: String) {
         try {
-
-            val gameSessionList = gameSessions[gameId]
 
             player.session.incoming.consumeEach { frame ->
                 if (frame is Frame.Text) {
@@ -64,11 +57,17 @@ class GameController {
                     // endregion
 
                     // region validate and update board
-                    val gameBoard = gameSessionList?.get(0)?.gameBoard
+                    val game = games[gameId] ?: return@consumeEach
+                    val gameBoard = game.gameBoard
+
+                    if (!isPlayerTurn(player.symbol, game)) {
+                        player.session.send("Not your turn")
+                        return@consumeEach
+                    }
 
                     gameBoard?.let {
-                        val x = receivedTurn.x
-                        val y = receivedTurn.y
+                        val x = receivedTurn.row
+                        val y = receivedTurn.column
                         if (isPositionTaken(it, x, y)) {
                             player.session.send("Position ($x, $y) is already taken. Try again.")
                             return@consumeEach
@@ -76,18 +75,24 @@ class GameController {
                     }
 
                     updateGameBoard(gameBoard, player, receivedTurn, gameScope)
+
                     // endregion
 
                     // region check winner player and send position
                     gameScope.launch {
-                        winnerPlayer(
-                            playerX = gameSessionList?.get(0)?.player!!,
-                            playerO = gameSessionList[1].player,
-                            gameBoard = gameBoard!!
-                        )
+                        if (game.player1 != null && game.player2 != null && gameBoard != null) {
+                            winnerPlayer(
+                                playerX = game.player1,
+                                playerO = game.player2,
+                                gameBoard = gameBoard
+                            )
+                        }
                     }
 
-                    sendToAnotherPlayer(receivedTurn, player.symbol, gameSessionList)
+                    sendToAnotherPlayer(receivedTurn, player.symbol, game)
+
+                    games[gameId] = game.copy(isFirstPlayerTurn = !game.isFirstPlayerTurn)
+
                     //endregion
 
                 }
@@ -100,11 +105,19 @@ class GameController {
         }
     }
 
-    private suspend fun sendToAnotherPlayer(turn: Turn, symbol: Char, gameSessionList: MutableList<Game>?) {
+    private fun isPlayerTurn(playerSymbol: Char, game: Game): Boolean {
+        if (playerSymbol == 'X' && game.isFirstPlayerTurn) {
+            return true
+        }
+
+        return playerSymbol == 'O' && !game.isFirstPlayerTurn
+    }
+
+    private suspend fun sendToAnotherPlayer(turn: Turn, symbol: Char, game: Game?) {
         if (symbol == 'X') {
-            gameSessionList?.get(1)?.player?.session?.send("${turn.x},${turn.y}")
+            game?.player2?.session?.send("${turn.row},${turn.column}")
         } else {
-            gameSessionList?.get(0)?.player?.session?.send("${turn.x},${turn.y}")
+            game?.player1?.session?.send("${turn.row},${turn.column}")
         }
     }
 
@@ -127,29 +140,21 @@ class GameController {
 
     //region handel player session
 
-    private fun createSession(
-        gameId: String,
-        playerName: String,
-        session: WebSocketSession,
-        gameBoard: Array<Array<Char>>? = null
-    ): Game {
-        return Game(
-            gameId = gameId,
-            player = Player(id = 0, name = playerName, symbol = 'X', session = session),
-            gameBoard = gameBoard
-        )
-    }
-
     private suspend fun newGame(
         playerName: String,
         session: WebSocketSession,
         gameBoard: Array<Array<Char>>
     ): Game {
         val newGameId = generateUUID()
-        val gameSession = createSession(newGameId, playerName, session, gameBoard)
+        val game = Game(
+            newGameId,
+            player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
+            isFirstPlayerTurn = true,
+            gameBoard = gameBoard
+        )
         session.send(newGameId)
-        gameSessions[newGameId] = mutableListOf(gameSession)
-        return gameSession
+        games[newGameId] = game
+        return game
     }
 
     private suspend fun joinGame(gameId: String, playerName: String, session: WebSocketSession): Game? {
@@ -159,27 +164,25 @@ class GameController {
             return null
         }
 
-
-        val gameSessionList = gameSessions[gameId]
-
-        if ((gameSessionList?.size ?: 0) < MAX_PLAYERS) {
-            val gameSession = createSession(gameId, playerName, session)
-                .copy(player = Player(id = 1, name = playerName, symbol = 'O', session = session))
-
-            gameSessionList?.add(gameSession)
-            return gameSession
-        } else {
+        val game = games[gameId]
+        if (game?.player2 != null) {
             session.close(CloseReason(FULL_ROOM, "Room is Full"))
+        } else if (game != null) {
+
+            val updateGame = game.copy(player2 = Player(id = 1, name = playerName, symbol = 'O', session = session))
+            games[gameId] = updateGame
+
+            return updateGame
         }
         return null
     }
 
     private fun leaveGameSession(gameId: String) {
-        gameSessions.remove(gameId)
+        games.remove(gameId)
     }
 
     private fun isValidGameSession(gameId: String): Boolean {
-        return gameSessions.containsKey(gameId)
+        return games.containsKey(gameId)
     }
 
     //endregion

@@ -72,7 +72,7 @@ fun updateGameBoard(
 ) {
     scope.launch {
         gameBoard?.let {
-            gameBoard[receivedTurn.x][receivedTurn.y] = player.symbol
+            gameBoard[receivedTurn.row][receivedTurn.column] = player.symbol
             print2DArray(gameBoard)
         }
     }
