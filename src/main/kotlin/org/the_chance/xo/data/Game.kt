@@ -1,31 +1,21 @@
 package org.the_chance.xo.data
 
-import io.ktor.websocket.*
-
-
-val empty2DArray: Array<Array<Char>> = arrayOf(
-    arrayOf(' ', ' ', ' '),
-    arrayOf(' ', ' ', ' '),
-    arrayOf(' ', ' ', ' '),
-)
-
-data class GameSession(
+data class Game(
     val gameId: String,
-    val playerName: String,
-    val playerSymbol: Char,
-    val session: WebSocketSession,
+    val player1: Player? = null,
+    val player2: Player? = null,
+    val isFirstPlayerTurn: Boolean = true,
     val gameBoard: Array<Array<Char>>? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as GameSession
+        other as Game
 
         if (gameId != other.gameId) return false
-        if (playerName != other.playerName) return false
-        if (playerSymbol != other.playerSymbol) return false
-        if (session != other.session) return false
+        if (player1 != other.player1) return false
+        if (player2 != other.player2) return false
         if (gameBoard != null) {
             if (other.gameBoard == null) return false
             if (!gameBoard.contentDeepEquals(other.gameBoard)) return false
@@ -36,10 +26,10 @@ data class GameSession(
 
     override fun hashCode(): Int {
         var result = gameId.hashCode()
-        result = 31 * result + playerName.hashCode()
-        result = 31 * result + playerSymbol.hashCode()
-        result = 31 * result + session.hashCode()
+        result = 31 * result + player1.hashCode()
+        result = 31 * result + player2.hashCode()
         result = 31 * result + (gameBoard?.contentDeepHashCode() ?: 0)
         return result
     }
+
 }
