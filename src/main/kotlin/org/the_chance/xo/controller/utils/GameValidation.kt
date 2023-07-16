@@ -1,6 +1,9 @@
 package org.the_chance.xo.controller.utils
 
-
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import org.the_chance.xo.data.Player
+import org.the_chance.xo.data.Turn
 
 
 fun isBoardFull(gameBoard: Array<Array<Char>>): Boolean {
@@ -57,6 +60,20 @@ fun clearBoard(gameBoard: Array<Array<Char>>) {
     for (i in gameBoard.indices) {
         for (j in gameBoard[i].indices) {
             gameBoard[i][j] = ' '
+        }
+    }
+}
+
+fun updateGameBoard(
+    gameBoard: Array<Array<Char>>?,
+    player: Player,
+    receivedTurn: Turn,
+    scope: CoroutineScope
+) {
+    scope.launch {
+        gameBoard?.let {
+            gameBoard[receivedTurn.x][receivedTurn.y] = player.symbol
+            print2DArray(gameBoard)
         }
     }
 }
