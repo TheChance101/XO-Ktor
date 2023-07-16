@@ -106,8 +106,8 @@ class GameController {
 
                 if (winningSymbol != null) {
                     if (winningSymbol == 'O') {
-                        receiver?.session?.send("Congratulations! You won!")
-                        sender?.session?.send("You lost!")
+                        sender?.session?.send("Congratulations! You won!")
+                        receiver?.session?.send("You lost!")
                         receiver?.session?.closeSession("End Game", "End Game")
                         sender?.session?.closeSession("End Game", "End Game")
                     } else {
@@ -116,7 +116,6 @@ class GameController {
                         receiver?.session?.closeSession("End Game", "End Game")
                         sender?.session?.closeSession("End Game", "End Game")
                     }
-
                 } else if (isBoardFull(gameBoard)) {
                     receiver?.session?.send("It's a tie!")
                     sender?.session?.send("It's a tie!")
