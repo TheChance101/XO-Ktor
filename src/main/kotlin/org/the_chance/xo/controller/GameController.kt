@@ -39,7 +39,7 @@ class GameController {
                     val receivedTurn = Json.decodeFromString<Turn>(turnJson)
                     val game = games[gameId] ?: return@consumeEach
 
-                    checkPositionAndUpdateBoardGame(game, receivedTurn, player)
+                    checkPositionAndUpdateGameBoard(game, receivedTurn, player)
                     checkTheWinner(game)
                     sendToAnotherPlayer(receivedTurn, player.symbol, game)
                     switchTurnPlayer(game)
@@ -65,7 +65,7 @@ class GameController {
         }
     }
 
-    private suspend fun checkPositionAndUpdateBoardGame(game: Game, receivedTurn: Turn, player: Player) {
+    private suspend fun checkPositionAndUpdateGameBoard(game: Game, receivedTurn: Turn, player: Player) {
         game.gameBoard?.let {
             val x = receivedTurn.row
             val y = receivedTurn.column
@@ -131,7 +131,6 @@ class GameController {
         loser.session.send(jsonText)
         loser.session.close(CloseReason(LOST_CODE, "End Game"))
         winner.session.close(CloseReason(WIN_CODE, "End Game"))
-
     }
 
     //region handel connect player
