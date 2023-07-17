@@ -4,15 +4,15 @@ package org.the_chance.xo.controller
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.consumeEach
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.the_chance.xo.controller.utils.getWinningSymbol
 import org.the_chance.xo.controller.utils.isBoardFull
 import org.the_chance.xo.controller.utils.isPositionTaken
 import org.the_chance.xo.controller.utils.updateGameBoard
-import org.the_chance.xo.data.Game
-import org.the_chance.xo.data.Player
-import org.the_chance.xo.data.Turn
+import org.the_chance.xo.data.*
 import org.the_chance.xo.utils.generateUUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -29,8 +29,8 @@ class GameController {
             val game = newGame(playerName, session, gameBoard = newBoard)
 
             println(
-                "\nPlayer ${game.player1?.id} : ${game.player1?.name} with symbol " +
-                        "${game.player1?.symbol} created new board ${newBoard.hashCode()}\n"
+                    "\nPlayer ${game.player1?.id} : ${game.player1?.name} with symbol " +
+                            "${game.player1?.symbol} created new board ${newBoard.hashCode()}\n"
             )
 
             game.player1?.let { broadcast(it, gameId = game.gameId) }
@@ -60,16 +60,14 @@ class GameController {
                     val game = games[gameId] ?: return@consumeEach
                     val gameBoard = game.gameBoard
 
-                    if (!isPlayerTurn(player.symbol, game)) {
-                        player.session.send("Not your turn")
-                        return@consumeEach
-                    }
-
                     gameBoard?.let {
                         val x = receivedTurn.row
                         val y = receivedTurn.column
                         if (isPositionTaken(it, x, y)) {
                             player.session.send("Position ($x, $y) is already taken. Try again.")
+                            return@consumeEach
+                        } else if (!isPlayerTurn(player.symbol, game)) {
+                            player.session.send("Not your turn")
                             return@consumeEach
                         }
                     }
@@ -82,9 +80,9 @@ class GameController {
                     gameScope.launch {
                         if (game.player1 != null && game.player2 != null && gameBoard != null) {
                             winnerPlayer(
-                                playerX = game.player1,
-                                playerO = game.player2,
-                                gameBoard = gameBoard
+                                    playerX = game.player1,
+                                    playerO = game.player2,
+                                    gameBoard = gameBoard
                             )
                         }
                     }
@@ -109,48 +107,69 @@ class GameController {
         if (playerSymbol == 'X' && game.isFirstPlayerTurn) {
             return true
         }
-
         return playerSymbol == 'O' && !game.isFirstPlayerTurn
     }
 
     private suspend fun sendToAnotherPlayer(turn: Turn, symbol: Char, game: Game?) {
+        val gameBoard = GameBoard(playTurn = symbol.toString(), position = turn)
         if (symbol == 'X') {
-            game?.player2?.session?.send("${turn.row},${turn.column}")
+            val jsonText = Json.encodeToString(gameBoard.copy(playTurn = "O"))
+            game?.player2?.session?.send(jsonText)
         } else {
-            game?.player1?.session?.send("${turn.row},${turn.column}")
+            val jsonText = Json.encodeToString(gameBoard.copy(playTurn = "X"))
+            game?.player1?.session?.send(jsonText)
         }
     }
 
     private suspend fun winnerPlayer(playerX: Player, playerO: Player, gameBoard: Array<Array<Char>>) {
         val winningSymbol = getWinningSymbol(gameBoard)
-
         if (winningSymbol != null) {
-            if (winningSymbol == 'O') {
-                playerO.session.close(CloseReason(WIN_CODE, "Congratulations! You won!"))
-                playerX.session.close(CloseReason(LOST_CODE, "You lost!"))
-            } else {
-                playerO.session.close(CloseReason(LOST_CODE, "You lost!"))
-                playerX.session.close(CloseReason(WIN_CODE, "Congratulations! You won!"))
-            }
+            handleGameOutcome(winningSymbol, playerX, playerO)
         } else if (isBoardFull(gameBoard)) {
-            playerO.session.close(CloseReason(DRAW_CODE, "It's a tie!"))
-            playerX.session.close(CloseReason(DRAW_CODE, "It's a tie!"))
+            notifyDrawAndEndGame(playerX, playerO)
         }
+    }
+
+    private suspend fun handleGameOutcome(winningSymbol: Char, playerX: Player, playerO: Player) {
+        if (winningSymbol == 'O') {
+            notifyWinAndEndGame(winner = playerO, loser = playerX)
+        } else {
+            notifyWinAndEndGame(winner = playerX, loser = playerO)
+        }
+    }
+
+    private suspend fun notifyDrawAndEndGame(playerX: Player, playerO: Player) {
+        val game = GameState(win = "", draw = true, lose = "")
+        val jsonText = Json.encodeToString(game)
+        playerO.session.send(jsonText)
+        playerX.session.send(jsonText)
+        playerO.session.close(CloseReason(DRAW_CODE, "End Game"))
+        playerX.session.close(CloseReason(DRAW_CODE, "End Game"))
+    }
+
+    private suspend fun notifyWinAndEndGame(winner: Player, loser: Player) {
+        val game = GameState(win = winner.symbol.toString(), draw = false, lose = loser.symbol.toString())
+        val jsonText = Json.encodeToString(game)
+        winner.session.send(jsonText)
+        loser.session.send(jsonText)
+        loser.session.close(CloseReason(LOST_CODE, "End Game"))
+        winner.session.close(CloseReason(WIN_CODE, "End Game"))
+
     }
 
     //region handel player session
 
     private suspend fun newGame(
-        playerName: String,
-        session: WebSocketSession,
-        gameBoard: Array<Array<Char>>
+            playerName: String,
+            session: WebSocketSession,
+            gameBoard: Array<Array<Char>>
     ): Game {
         val newGameId = generateUUID()
         val game = Game(
-            newGameId,
-            player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
-            isFirstPlayerTurn = true,
-            gameBoard = gameBoard
+                newGameId,
+                player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
+                isFirstPlayerTurn = true,
+                gameBoard = gameBoard
         )
         session.send(newGameId)
         games[newGameId] = game
@@ -171,7 +190,7 @@ class GameController {
 
             val updateGame = game.copy(player2 = Player(id = 1, name = playerName, symbol = 'O', session = session))
             games[gameId] = updateGame
-
+            game.player1?.session?.send("Your Friend Joined the game")
             return updateGame
         }
         return null
@@ -198,3 +217,4 @@ class GameController {
     }
 
 }
+
