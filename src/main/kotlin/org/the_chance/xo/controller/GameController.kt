@@ -39,7 +39,7 @@ class GameController {
                     val receivedTurn = Json.decodeFromString<Turn>(turnJson)
                     val game = games[gameId] ?: return@consumeEach
 
-                    checkPositionAndUpdateGameBoard(game, receivedTurn, player)
+                    checkPositionAndUpdateGameBoard(game, receivedTurn, player) ?: return@consumeEach
                     checkTheWinner(game)
                     sendToAnotherPlayer(receivedTurn, player.symbol, game)
                     switchTurnPlayer(game)
@@ -53,7 +53,7 @@ class GameController {
         }
     }
 
-    private fun switchTurnPlayer(game: Game){
+    private fun switchTurnPlayer(game: Game) {
         games[game.gameId] = game.copy(isFirstPlayerTurn = !game.isFirstPlayerTurn)
     }
 
@@ -65,19 +65,20 @@ class GameController {
         }
     }
 
-    private suspend fun checkPositionAndUpdateGameBoard(game: Game, receivedTurn: Turn, player: Player) {
+    private suspend fun checkPositionAndUpdateGameBoard(game: Game, receivedTurn: Turn, player: Player): Unit? {
         game.gameBoard?.let {
             val x = receivedTurn.row
             val y = receivedTurn.column
             if (isPositionTaken(it, x, y)) {
                 player.session.send("Position ($x, $y) is already taken. Try again.")
-                return
+                return null
             } else if (!isPlayerTurn(player.symbol, game)) {
                 player.session.send("Not your turn")
-                return
+                return null
             }
         }
         updateGameBoard(game.gameBoard, player, receivedTurn, gameScope)
+        return Unit
     }
 
     private fun isPlayerTurn(playerSymbol: Char, game: Game): Boolean {
@@ -138,8 +139,8 @@ class GameController {
     private suspend fun newGame(playerName: String, session: WebSocketSession, gameBoard: Array<Array<Char>>): Game {
         val newGameId = generateUUID()
         val game = Game(
-            newGameId, player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
-            isFirstPlayerTurn = true, gameBoard = gameBoard
+                newGameId, player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
+                isFirstPlayerTurn = true, gameBoard = gameBoard
         )
         session.send(newGameId)
         games[newGameId] = game
