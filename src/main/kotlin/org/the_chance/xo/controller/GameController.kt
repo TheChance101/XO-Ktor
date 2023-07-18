@@ -7,10 +7,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.the_chance.xo.controller.utils.getWinningSymbol
-import org.the_chance.xo.controller.utils.isBoardFull
-import org.the_chance.xo.controller.utils.isPositionTaken
-import org.the_chance.xo.controller.utils.updateGameBoard
+import org.the_chance.xo.controller.utils.*
 import org.the_chance.xo.data.*
 import org.the_chance.xo.utils.generateUUID
 import java.util.concurrent.ConcurrentHashMap
@@ -70,10 +67,14 @@ class GameController {
             val x = receivedTurn.row
             val y = receivedTurn.column
             if (isPositionTaken(it, x, y)) {
-                player.session.send("Position ($x, $y) is already taken. Try again.")
+                val result = ServerResponse.success(result = "Position ($x, $y) is already taken. Try again.", code = POSITION_ALREADY_TAKEN)
+                val jsonText = Json.encodeToString(result)
+                player.session.send(jsonText)
                 return null
             } else if (!isPlayerTurn(player.symbol, game)) {
-                player.session.send("Not your turn")
+                val result = ServerResponse.success(result = "Wait for your turn", code = NOT_YOUR_TURN)
+                val jsonText = Json.encodeToString(result)
+                player.session.send(jsonText)
                 return null
             }
         }
@@ -91,10 +92,12 @@ class GameController {
     private suspend fun sendToAnotherPlayer(turn: Turn, symbol: Char, game: Game?) {
         val gameBoard = GameBoard(playTurn = symbol.toString(), position = turn)
         if (symbol == 'X') {
-            val jsonText = Json.encodeToString(gameBoard.copy(playTurn = "O"))
+            val result = ServerResponse.success(result = gameBoard.copy(playTurn = "O") )
+            val jsonText = Json.encodeToString(result)
             game?.player2?.session?.send(jsonText)
         } else {
-            val jsonText = Json.encodeToString(gameBoard.copy(playTurn = "X"))
+            val result = ServerResponse.success(result = gameBoard.copy(playTurn = "X") )
+            val jsonText = Json.encodeToString(result)
             game?.player1?.session?.send(jsonText)
         }
     }
@@ -118,7 +121,8 @@ class GameController {
 
     private suspend fun notifyDrawAndEndGame(playerX: Player, playerO: Player) {
         val game = GameState(win = "", draw = true, lose = "")
-        val jsonText = Json.encodeToString(game)
+        val result = ServerResponse.success(result = game)
+        val jsonText = Json.encodeToString(result)
         playerO.session.send(jsonText)
         playerX.session.send(jsonText)
         playerO.session.close(CloseReason(DRAW_CODE, "End Game"))
@@ -127,7 +131,8 @@ class GameController {
 
     private suspend fun notifyWinAndEndGame(winner: Player, loser: Player) {
         val game = GameState(win = winner.symbol.toString(), draw = false, lose = loser.symbol.toString())
-        val jsonText = Json.encodeToString(game)
+        val result = ServerResponse.success(result = game)
+        val jsonText = Json.encodeToString(result)
         winner.session.send(jsonText)
         loser.session.send(jsonText)
         loser.session.close(CloseReason(LOST_CODE, "End Game"))
@@ -142,7 +147,9 @@ class GameController {
                 newGameId, player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
                 isFirstPlayerTurn = true, gameBoard = gameBoard
         )
-        session.send(newGameId)
+        val result = ServerResponse.success(result = newGameId, code = GAME_ID)
+        val jsonText = Json.encodeToString(result)
+        session.send(jsonText)
         games[newGameId] = game
         return game
     }
@@ -160,7 +167,9 @@ class GameController {
         } else if (game != null) {
             val updateGame = game.copy(player2 = Player(id = 1, name = playerName, symbol = 'O', session = session))
             games[gameId] = updateGame
-            game.player1?.session?.send("Your Friend Joined the game")
+            val result = ServerResponse.success(result = "Your Friend Joined the game", code = JOINED_THE_GAME)
+            val jsonText = Json.encodeToString(result)
+            game.player1?.session?.send(jsonText)
             return updateGame
         }
         return null
@@ -177,6 +186,10 @@ class GameController {
     //endregion
 
     companion object {
+        private const val GAME_ID: Int = 3
+        private const val JOINED_THE_GAME: Int = 4
+        private const val POSITION_ALREADY_TAKEN: Int = 5
+        private const val NOT_YOUR_TURN: Int = 6
         private const val FULL_ROOM: Short = 7
         private const val GAME_ID_NOT_VALID: Short = 8
         private const val PLAYER_NOT_CONNECTED: Short = 9
