@@ -117,19 +117,19 @@ class GameController {
     }
 
     private suspend fun notifyDrawAndEndGame(playerX: Player, playerO: Player) {
-        val game = GameState(win = "", draw = true, lose = "")
-        val jsonText = Json.encodeToString(game)
-        playerO.session.send(jsonText)
-        playerX.session.send(jsonText)
+//        val game = GameState(win = "", draw = true, lose = "")
+//        val jsonText = Json.encodeToString(game)
+        playerO.session.send("draw")
+        playerX.session.send("draw")
         playerO.session.close(CloseReason(DRAW_CODE, "End Game"))
         playerX.session.close(CloseReason(DRAW_CODE, "End Game"))
     }
 
     private suspend fun notifyWinAndEndGame(winner: Player, loser: Player) {
         val game = GameState(win = winner.symbol.toString(), draw = false, lose = loser.symbol.toString())
-        val jsonText = Json.encodeToString(game)
-        winner.session.send(jsonText)
-        loser.session.send(jsonText)
+//        val jsonText = Json.encodeToString(game)
+        winner.session.send("win#${game.win}")
+        loser.session.send("win#${game.win}")
         loser.session.close(CloseReason(LOST_CODE, "End Game"))
         winner.session.close(CloseReason(WIN_CODE, "End Game"))
     }
@@ -160,7 +160,8 @@ class GameController {
         } else if (game != null) {
             val updateGame = game.copy(player2 = Player(id = 1, name = playerName, symbol = 'O', session = session))
             games[gameId] = updateGame
-            game.player1?.session?.send("Your Friend Joined the game")
+            updateGame.player1?.session?.send("players : #${updateGame.player2?.name}")
+            updateGame.player2?.session?.send("players : #${updateGame.player1?.name}")
             return updateGame
         }
         return null
