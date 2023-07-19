@@ -70,7 +70,7 @@ class GameController {
             val x = receivedTurn.row
             val y = receivedTurn.column
             if (isPositionTaken(it, x, y)) {
-                player.session.send("Position ($x, $y) is already taken. Try again.")
+                player.session.send("Position is already taken. Try again.")
                 return null
             } else if (!isPlayerTurn(player.symbol, game)) {
                 player.session.send("Not your turn")
