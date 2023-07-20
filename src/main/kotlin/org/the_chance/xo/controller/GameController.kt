@@ -39,7 +39,9 @@ class GameController {
                     val receivedTurn = Json.decodeFromString<Turn>(turnJson)
                     val game = games[gameId] ?: return@consumeEach
 
-                    checkPositionAndUpdateGameBoard(game, receivedTurn, player) ?: return@consumeEach
+                    val isChecked = checkPositionAndUpdateGameBoard(game, receivedTurn, player)
+                    if (!isChecked) return@consumeEach
+
                     checkTheWinner(game)
                     sendToAnotherPlayer(receivedTurn, player.symbol, game)
                     switchTurnPlayer(game)
@@ -49,7 +51,6 @@ class GameController {
             player.session.close(CloseReason(PLAYER_NOT_CONNECTED, "Player 2 is not connected"))
         } finally {
             leaveGame(gameId)
-            gameScope.cancel()
         }
     }
 
@@ -65,20 +66,20 @@ class GameController {
         }
     }
 
-    private suspend fun checkPositionAndUpdateGameBoard(game: Game, receivedTurn: Turn, player: Player): Unit? {
+    private suspend fun checkPositionAndUpdateGameBoard(game: Game, receivedTurn: Turn, player: Player): Boolean {
         game.gameBoard?.let {
             val x = receivedTurn.row
             val y = receivedTurn.column
             if (isPositionTaken(it, x, y)) {
                 player.session.send("Position is already taken. Try again.")
-                return null
+                return false
             } else if (!isPlayerTurn(player.symbol, game)) {
                 player.session.send("Not your turn")
-                return null
+                return false
             }
         }
         updateGameBoard(game.gameBoard, player, receivedTurn, gameScope)
-        return Unit
+        return true
     }
 
     private fun isPlayerTurn(playerSymbol: Char, game: Game): Boolean {
@@ -139,8 +140,8 @@ class GameController {
     private suspend fun newGame(playerName: String, session: WebSocketSession, gameBoard: Array<Array<Char>>): Game {
         val newGameId = generateUUID()
         val game = Game(
-                newGameId, player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
-                isFirstPlayerTurn = true, gameBoard = gameBoard
+            newGameId, player1 = Player(id = 0, name = playerName, symbol = 'X', session = session),
+            isFirstPlayerTurn = true, gameBoard = gameBoard
         )
         session.send(newGameId)
         games[newGameId] = game
